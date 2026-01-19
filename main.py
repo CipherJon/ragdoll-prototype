@@ -1,6 +1,7 @@
 import math
 import random
 import sys
+from itertools import cycle
 
 import numpy as np
 import pygame
@@ -154,7 +155,9 @@ class Ragdoll:
         apply_constraints(self.positions, self.constraints, 50)
 
     def draw(self, surface):
-        for pos, color, size in self:
+        for pos, color, size in zip(
+            self.positions, cycle(self.colors), cycle(self.sizes)
+        ):
             pygame.draw.circle(surface, color, (int(pos[0]), int(pos[1])), size)
 
         # Draw constraints
