@@ -2,7 +2,9 @@ import math
 import random
 import sys
 
+import numpy as np
 import pygame
+from numba import njit
 
 # Initialize Pygame
 pygame.init()
@@ -25,123 +27,120 @@ pygame.display.set_caption("Ragdoll Prototype")
 clock = pygame.time.Clock()
 
 
+# JIT-compiled functions
+@njit
+def apply_gravity_and_damping(
+    positions, prev_positions, width, height, gravity, damping
+):
+    for i in range(len(positions)):
+        # Update velocity
+        vx = positions[i, 0] - prev_positions[i, 0]
+        vy = positions[i, 1] - prev_positions[i, 1]
+
+        # Store previous positions
+        prev_positions[i, 0] = positions[i, 0]
+        prev_positions[i, 1] = positions[i, 1]
+
+        # Apply gravity and damping
+        positions[i, 1] += gravity
+        positions[i, 0] += vx * damping
+        positions[i, 1] += vy * damping
+
+        # Boundary collision
+        if positions[i, 0] < 0 or positions[i, 0] > width:
+            positions[i, 0] = max(0, min(width, positions[i, 0]))
+            prev_positions[i, 0] = positions[i, 0]
+        if positions[i, 1] < 0 or positions[i, 1] > height:
+            positions[i, 1] = max(0, min(height, positions[i, 1]))
+            prev_positions[i, 1] = positions[i, 1]
+
+
+@njit
+def apply_constraints(positions, constraints, constraint_distance):
+    for constraint in constraints:
+        i, j = constraint
+        dx = positions[j, 0] - positions[i, 0]
+        dy = positions[j, 1] - positions[i, 1]
+        distance = np.sqrt(dx**2 + dy**2)
+        if distance > constraint_distance:
+            # Normalize the direction vector
+            if distance > 0:
+                dx /= distance
+                dy /= distance
+            # Calculate the correction needed
+            correction = (distance - constraint_distance) * 0.5
+            # Move parts closer
+            positions[i, 0] += dx * correction
+            positions[i, 1] += dy * correction
+            positions[j, 0] -= dx * correction
+            positions[j, 1] -= dy * correction
+
+
 # Ragdoll class
 class Ragdoll:
     def __init__(self, x, y):
-        self.parts = [
-            {
-                "x": x,
-                "y": y,
-                "prev_x": x,
-                "prev_y": y,
-                "size": 20,
-                "color": RED,
-            },  # Head
-            {
-                "x": x,
-                "y": y + 40,
-                "prev_x": x,
-                "prev_y": y + 40,
-                "size": 30,
-                "color": BLUE,
-            },  # Torso
-            {
-                "x": x - 30,
-                "y": y + 80,
-                "prev_x": x - 30,
-                "prev_y": y + 80,
-                "size": 25,
-                "color": BLUE,
-            },  # Left Arm
-            {
-                "x": x + 30,
-                "y": y + 80,
-                "prev_x": x + 30,
-                "prev_y": y + 80,
-                "size": 25,
-                "color": BLUE,
-            },  # Right Arm
-            {
-                "x": x - 20,
-                "y": y + 130,
-                "prev_x": x - 20,
-                "prev_y": y + 130,
-                "size": 25,
-                "color": BLUE,
-            },  # Left Leg
-            {
-                "x": x + 20,
-                "y": y + 130,
-                "prev_x": x + 20,
-                "prev_y": y + 130,
-                "size": 25,
-                "color": BLUE,
-            },  # Right Leg
-        ]
-        self.constraints = [
-            (0, 1),  # Head to Torso
-            (1, 2),  # Torso to Left Arm
-            (1, 3),  # Torso to Right Arm
-            (1, 4),  # Torso to Left Leg
-            (1, 5),  # Torso to Right Leg
-        ]
+        # Initialize parts as NumPy arrays
+        self.positions = np.array(
+            [
+                [x, y],  # Head
+                [x, y + 40],  # Torso
+                [x - 30, y + 80],  # Left Arm
+                [x + 30, y + 80],  # Right Arm
+                [x - 20, y + 130],  # Left Leg
+                [x + 20, y + 130],  # Right Leg
+            ],
+            dtype=np.float64,
+        )
+
+        self.prev_positions = np.copy(self.positions)
+        self.sizes = np.array([20, 30, 25, 25, 25, 25])
+        self.colors = np.array(
+            [
+                (255, 0, 0),  # Head (RED)
+                (0, 0, 255),  # Torso (BLUE)
+                (0, 0, 255),  # Left Arm (BLUE)
+                (0, 0, 255),  # Right Arm (BLUE)
+                (0, 0, 255),  # Left Leg (BLUE)
+                (0, 0, 255),  # Right Leg (BLUE)
+            ]
+        )
+
+        self.constraints = np.array(
+            [
+                (0, 1),  # Head to Torso
+                (1, 2),  # Torso to Left Arm
+                (1, 3),  # Torso to Right Arm
+                (1, 4),  # Torso to Left Leg
+                (1, 5),  # Torso to Right Leg
+            ]
+        )
 
     def update(self):
-        for part in self.parts:
-            # Apply gravity
-            part["y"] += GRAVITY
-
-            # Update velocity
-            vx = part["x"] - part["prev_x"]
-            vy = part["y"] - part["prev_y"]
-            part["prev_x"] = part["x"]
-            part["prev_y"] = part["y"]
-            part["x"] += vx * DAMPING
-            part["y"] += vy * DAMPING
-
-            # Boundary collision
-            if part["x"] < 0 or part["x"] > WIDTH:
-                part["x"] = max(0, min(WIDTH, part["x"]))
-                part["prev_x"] = part["x"]
-            if part["y"] < 0 or part["y"] > HEIGHT:
-                part["y"] = max(0, min(HEIGHT, part["y"]))
-                part["prev_y"] = part["y"]
+        # Apply gravity and damping
+        apply_gravity_and_damping(
+            self.positions, self.prev_positions, WIDTH, HEIGHT, GRAVITY, DAMPING
+        )
 
         # Apply constraints
-        for i, j in self.constraints:
-            part1 = self.parts[i]
-            part2 = self.parts[j]
-            dx = part2["x"] - part1["x"]
-            dy = part2["y"] - part1["y"]
-            distance = math.sqrt(dx**2 + dy**2)
-            if distance > 50:  # Constraint distance
-                # Normalize the direction vector
-                if distance > 0:
-                    dx /= distance
-                    dy /= distance
-                # Calculate the correction needed
-                correction = (distance - 50) * 0.5
-                # Move parts closer
-                part1["x"] += dx * correction
-                part1["y"] += dy * correction
-                part2["x"] -= dx * correction
-                part2["y"] -= dy * correction
+        apply_constraints(self.positions, self.constraints, 50)
 
     def draw(self, surface):
-        for part in self.parts:
+        for i in range(len(self.positions)):
             pygame.draw.circle(
-                surface, part["color"], (int(part["x"]), int(part["y"])), part["size"]
+                surface,
+                self.colors[i],
+                (int(self.positions[i, 0]), int(self.positions[i, 1])),
+                self.sizes[i],
             )
 
         # Draw constraints
-        for i, j in self.constraints:
-            part1 = self.parts[i]
-            part2 = self.parts[j]
+        for constraint in self.constraints:
+            i, j = constraint
             pygame.draw.line(
                 surface,
                 BLACK,
-                (int(part1["x"]), int(part1["y"])),
-                (int(part2["x"]), int(part2["y"])),
+                (int(self.positions[i, 0]), int(self.positions[i, 1])),
+                (int(self.positions[j, 0]), int(self.positions[j, 1])),
                 2,
             )
 
