@@ -127,6 +127,11 @@ class Ragdoll:
             ]
         )
 
+    def __iter__(self):
+        """Iterator to yield parts of the ragdoll."""
+        for pos, color, size in zip(self.positions, self.colors, self.sizes):
+            yield (pos, color, size)
+
     def update(self):
         # Apply gravity and damping
         apply_gravity_and_damping(
@@ -137,8 +142,8 @@ class Ragdoll:
         apply_constraints(self.positions, self.constraints, 50)
 
     def draw(self, surface):
-        for (x, y), color, size in zip(self.positions, self.colors, self.sizes):
-            pygame.draw.circle(surface, color, (int(x), int(y)), size)
+        for pos, color, size in self:
+            pygame.draw.circle(surface, color, (int(pos[0]), int(pos[1])), size)
 
         # Draw constraints
         for i, j in self.constraints:
