@@ -125,22 +125,18 @@ class Ragdoll:
         apply_constraints(self.positions, self.constraints, 50)
 
     def draw(self, surface):
-        for i in range(len(self.positions)):
-            pygame.draw.circle(
-                surface,
-                self.colors[i],
-                (int(self.positions[i, 0]), int(self.positions[i, 1])),
-                self.sizes[i],
-            )
+        for (x, y), color, size in zip(self.positions, self.colors, self.sizes):
+            pygame.draw.circle(surface, color, (int(x), int(y)), size)
 
         # Draw constraints
-        for constraint in self.constraints:
-            i, j = constraint
+        for i, j in self.constraints:
+            x1, y1 = self.positions[i]
+            x2, y2 = self.positions[j]
             pygame.draw.line(
                 surface,
                 BLACK,
-                (int(self.positions[i, 0]), int(self.positions[i, 1])),
-                (int(self.positions[j, 0]), int(self.positions[j, 1])),
+                (int(x1), int(y1)),
+                (int(x2), int(y2)),
                 2,
             )
 
