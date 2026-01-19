@@ -132,6 +132,18 @@ class Ragdoll:
         for pos, color, size in zip(self.positions, self.colors, self.sizes):
             yield (pos, color, size)
 
+    def generate_parts(self):
+        """Generator to yield parts of the ragdoll with metadata."""
+        for i, (pos, color, size) in enumerate(
+            zip(self.positions, self.colors, self.sizes)
+        ):
+            yield {
+                "index": i,
+                "position": pos,
+                "color": color,
+                "size": size,
+            }
+
     def update(self):
         # Apply gravity and damping
         apply_gravity_and_damping(
