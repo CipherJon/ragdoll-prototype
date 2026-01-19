@@ -27,6 +27,18 @@ pygame.display.set_caption("Ragdoll Prototype")
 clock = pygame.time.Clock()
 
 
+# Decorator to log execution time
+def log_execution_time(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        print(f"{func.__name__} executed in {end_time - start_time:.6f} seconds")
+        return result
+
+    return wrapper
+
+
 # JIT-compiled functions
 @njit
 def apply_gravity_and_damping(
